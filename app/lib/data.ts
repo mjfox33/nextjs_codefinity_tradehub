@@ -1,12 +1,13 @@
 import { sql } from '@vercel/postgres';
+import { unstable_noStore as noStore } from 'next/cache';
 import {
-  SellerField,
-  SellersTableType,
-  InvoiceForm,
-  InvoicesTable,
-  LatestInvoiceRaw,
-  User,
-  Income,
+    SellerField,
+    SellersTableType,
+    InvoiceForm,
+    InvoicesTable,
+    LatestInvoiceRaw,
+    User,
+    Income,
 } from './definitions';
 import { formatCurrency } from './utils';
 
@@ -15,17 +16,17 @@ import { formatCurrency } from './utils';
  * @returns {Promise<Income[]>} A promise that resolves to an array of income data.
  */
 export async function fetchIncome() {
-  // Add noStore() here prevent the response from being cached.
-  // This is equivalent to in fetch(..., {cache: 'no-store'}).
+    // Add noStore() here prevent the response from being cached.
+    // This is equivalent to in fetch(..., {cache: 'no-store'}).
+    noStore();
+    try {
+        const data = await sql<Income>`SELECT * FROM income`;
 
-  try {
-    const data = await sql<Income>`SELECT * FROM income`;
-
-    return data.rows;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch income data.');
-  }
+        return data.rows;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch income data.');
+    }
 }
 
 /**
@@ -33,23 +34,24 @@ export async function fetchIncome() {
  * @returns {Promise<LatestInvoiceRaw[]>} A promise that resolves to an array of the latest invoices.
  */
 export async function fetchLatestInvoices() {
-  try {
-    const data = await sql<LatestInvoiceRaw>`
+    noStore();
+    try {
+        const data = await sql<LatestInvoiceRaw>`
       SELECT invoices.amount, sellers.name, sellers.image_url, sellers.email, invoices.id
       FROM invoices
       JOIN sellers ON invoices.seller_id = sellers.id
       ORDER BY invoices.date DESC
       LIMIT 5`;
 
-    const latestInvoices = data.rows.map((invoice) => ({
-      ...invoice,
-      amount: formatCurrency(invoice.amount),
-    }));
-    return latestInvoices;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch the latest invoices.');
-  }
+        const latestInvoices = data.rows.map((invoice) => ({
+            ...invoice,
+            amount: formatCurrency(invoice.amount),
+        }));
+        return latestInvoices;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch the latest invoices.');
+    }
 }
 
 /**
@@ -57,39 +59,40 @@ export async function fetchLatestInvoices() {
  * @returns {Promise<object>} A promise that resolves to an object containing card data.
  */
 export async function fetchCardData() {
-  try {
-    const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
-    const sellerCountPromise = sql`SELECT COUNT(*) FROM sellers`;
-    const invoiceStatusPromise = sql`SELECT
+    noStore();
+    try {
+        const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
+        const sellerCountPromise = sql`SELECT COUNT(*) FROM sellers`;
+        const invoiceStatusPromise = sql`SELECT
          SUM(CASE WHEN status = 'fulfilled' THEN amount ELSE 0 END) AS "fulfilled",
          SUM(CASE WHEN status = 'awaiting' THEN amount ELSE 0 END) AS "awaiting"
          FROM invoices`;
 
-    const data = await Promise.all([
-      invoiceCountPromise,
-      sellerCountPromise,
-      invoiceStatusPromise,
-    ]);
+        const data = await Promise.all([
+            invoiceCountPromise,
+            sellerCountPromise,
+            invoiceStatusPromise,
+        ]);
 
-    const numberOfInvoices = Number(data[0].rows[0].count ?? '0');
-    const numberOfSellers = Number(data[1].rows[0].count ?? '0');
-    const totalFulfilledInvoices = formatCurrency(
-      data[2].rows[0].fulfilled ?? '0',
-    );
-    const totalAwaitingInvoices = formatCurrency(
-      data[2].rows[0].awaiting ?? '0',
-    );
+        const numberOfInvoices = Number(data[0].rows[0].count ?? '0');
+        const numberOfSellers = Number(data[1].rows[0].count ?? '0');
+        const totalFulfilledInvoices = formatCurrency(
+            data[2].rows[0].fulfilled ?? '0',
+        );
+        const totalAwaitingInvoices = formatCurrency(
+            data[2].rows[0].awaiting ?? '0',
+        );
 
-    return {
-      numberOfSellers,
-      numberOfInvoices,
-      totalFulfilledInvoices,
-      totalAwaitingInvoices,
-    };
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch card data.');
-  }
+        return {
+            numberOfSellers,
+            numberOfInvoices,
+            totalFulfilledInvoices,
+            totalAwaitingInvoices,
+        };
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch card data.');
+    }
 }
 
 /**
@@ -100,13 +103,14 @@ export async function fetchCardData() {
  */
 const ITEMS_PER_PAGE = 6;
 export async function fetchFilteredInvoices(
-  query: string,
-  currentPage: number,
+    query: string,
+    currentPage: number,
 ) {
-  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+    noStore();
+    const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  try {
-    const invoices = await sql<InvoicesTable>`
+    try {
+        const invoices = await sql<InvoicesTable>`
       SELECT
         invoices.id,
         invoices.amount,
@@ -127,11 +131,11 @@ export async function fetchFilteredInvoices(
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
 
-    return invoices.rows;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoices.');
-  }
+        return invoices.rows;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch invoices.');
+    }
 }
 
 /**
@@ -140,8 +144,9 @@ export async function fetchFilteredInvoices(
  * @returns {Promise<number>} A promise that resolves to the total number of pages.
  */
 export async function fetchInvoicesPages(query: string) {
-  try {
-    const count = await sql`SELECT COUNT(*)
+    noStore();
+    try {
+        const count = await sql`SELECT COUNT(*)
     FROM invoices
     JOIN sellers ON invoices.seller_id = sellers.id
     WHERE
@@ -152,12 +157,12 @@ export async function fetchInvoicesPages(query: string) {
       invoices.status ILIKE ${`%${query}%`}
   `;
 
-    const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
-    return totalPages;
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch total number of invoices.');
-  }
+        const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
+        return totalPages;
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch total number of invoices.');
+    }
 }
 
 /**
@@ -166,8 +171,9 @@ export async function fetchInvoicesPages(query: string) {
  * @returns {Promise<InvoiceForm>} A promise that resolves to the details of the specified invoice.
  */
 export async function fetchInvoiceById(id: string) {
-  try {
-    const data = await sql<InvoiceForm>`
+    noStore();
+    try {
+        const data = await sql<InvoiceForm>`
       SELECT
         invoices.id,
         invoices.seller_id,
@@ -177,17 +183,17 @@ export async function fetchInvoiceById(id: string) {
       WHERE invoices.id = ${id};
     `;
 
-    const invoice = data.rows.map((invoice) => ({
-      ...invoice,
-      // Convert amount from cents to dollars
-      amount: invoice.amount / 100,
-    }));
+        const invoice = data.rows.map((invoice) => ({
+            ...invoice,
+            // Convert amount from cents to dollars
+            amount: invoice.amount / 100,
+        }));
 
-    return invoice[0];
-  } catch (error) {
-    console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoice.');
-  }
+        return invoice[0];
+    } catch (error) {
+        console.error('Database Error:', error);
+        throw new Error('Failed to fetch invoice.');
+    }
 }
 
 /**
@@ -195,8 +201,9 @@ export async function fetchInvoiceById(id: string) {
  * @returns {Promise<SellerField[]>} A promise that resolves to an array of seller data.
  */
 export async function fetchSellers() {
-  try {
-    const data = await sql<SellerField>`
+    noStore();
+    try {
+        const data = await sql<SellerField>`
       SELECT
         id,
         name
@@ -204,12 +211,12 @@ export async function fetchSellers() {
       ORDER BY name ASC
     `;
 
-    const sellers = data.rows;
-    return sellers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch all sellers.');
-  }
+        const sellers = data.rows;
+        return sellers;
+    } catch (err) {
+        console.error('Database Error:', err);
+        throw new Error('Failed to fetch all sellers.');
+    }
 }
 
 /**
@@ -218,8 +225,9 @@ export async function fetchSellers() {
  * @returns {Promise<FormattedSellersTable[]>} A promise that resolves to an array of formatted seller data.
  */
 export async function fetchFilteredSellers(query: string) {
-  try {
-    const data = await sql<SellersTableType>`
+    noStore();
+    try {
+        const data = await sql<SellersTableType>`
 		SELECT
 		  sellers.id,
 		  sellers.name,
@@ -237,17 +245,17 @@ export async function fetchFilteredSellers(query: string) {
 		ORDER BY sellers.name ASC
 	  `;
 
-    const sellers = data.rows.map((seller) => ({
-      ...seller,
-      total_awaiting: formatCurrency(seller.total_awaiting),
-      total_fulfilled: formatCurrency(seller.total_fulfilled),
-    }));
+        const sellers = data.rows.map((seller) => ({
+            ...seller,
+            total_awaiting: formatCurrency(seller.total_awaiting),
+            total_fulfilled: formatCurrency(seller.total_fulfilled),
+        }));
 
-    return sellers;
-  } catch (err) {
-    console.error('Database Error:', err);
-    throw new Error('Failed to fetch seller table.');
-  }
+        return sellers;
+    } catch (err) {
+        console.error('Database Error:', err);
+        throw new Error('Failed to fetch seller table.');
+    }
 }
 
 /**
@@ -256,11 +264,12 @@ export async function fetchFilteredSellers(query: string) {
  * @returns {Promise<User>} A promise that resolves to the user details.
  */
 export async function getUser(email: string) {
-  try {
-    const user = await sql`SELECT * FROM users WHERE email=${email}`;
-    return user.rows[0] as User;
-  } catch (error) {
-    console.error('Failed to fetch user:', error);
-    throw new Error('Failed to fetch user.');
-  }
+    noStore();
+    try {
+        const user = await sql`SELECT * FROM users WHERE email=${email}`;
+        return user.rows[0] as User;
+    } catch (error) {
+        console.error('Failed to fetch user:', error);
+        throw new Error('Failed to fetch user.');
+    }
 }
