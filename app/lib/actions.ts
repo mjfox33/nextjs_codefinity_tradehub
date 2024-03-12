@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import bcrypt from 'bcrypt';
 
 const FormSchema = z.object({
     id: z.string(),
@@ -17,6 +18,17 @@ const FormSchema = z.object({
 
 const CreateInvoice = FormSchema.omit({ id: true, date: true });
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
+
+const UserFormSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string().email(),
+    password: z.string(),
+    passwordConfirm: z.string(),
+    date: z.string(),
+})
+
+const AddUser = UserFormSchema.omit({ id: true, date: true });
 
 export async function createInvoice(formData: FormData) {
     const { sellerId, amount, status } = CreateInvoice.parse({
@@ -77,5 +89,33 @@ export async function authenticate(
             }
         }
         throw error;
+    }
+}
+
+export async function addUserToDB(
+    formData: FormData,
+) {
+    try {
+        const { name, email, password, passwordConfirm } = AddUser.parse({
+            name: formData.get('name'),
+            email: formData.get('email'),
+            password: formData.get('password'),
+            passwordConfirm: formData.get('passwordConfirm'),
+        });
+        if (password != passwordConfirm) {
+            return;
+
+        }
+        const salt = bcrypt.genSaltSync(10);
+        const hash = bcrypt.hashSync(password, salt);
+
+        await sql`
+INSERT INTO users (name, email, password)
+VALUES (${name}, ${email}, ${hash})
+`;
+
+    } catch (error) {
+        throw error;
+
     }
 }
